@@ -40,9 +40,6 @@
 %% Macros
 %%====================================================================
 
--define(ESCAPE_LVALUE(Value),
-        sub(sub(sub(Value, "\\", "\\\\\\\\"), "\n", "\\\\n"), "\"", "\\\\\"")).
-
 %%====================================================================
 %% Format API
 %%====================================================================
@@ -150,7 +147,12 @@ emit_series(Fd, Name, Labels, undefined) ->
   file:write(Fd, [Name, LString, " NaN\n"]);
 emit_series(Fd, Name, Labels, Value) ->
   LString = labels_string(Labels),
-  file:write(Fd, [Name, LString, " ", io_lib:format("~p", [Value]) , "\n"]).
+  file:write(Fd, [Name, LString, " ", num_to_list(Value), "\n"]).
+
+num_to_list(N) when is_integer(N) ->
+  integer_to_list(N);
+num_to_list(F) ->
+  float_to_list(F).
 
 %% @private
 escape_metric_help(Help) ->
@@ -163,12 +165,26 @@ bound_to_label_value(infinity) ->
 
 -spec escape_label_value(binary() | iolist() | undefined) -> string().
 %% @private
-escape_label_value(LValue) when is_list(LValue)->
-  ?ESCAPE_LVALUE(LValue);
-escape_label_value(LValue) when is_binary(LValue) ->
-  ?ESCAPE_LVALUE(LValue);
-escape_label_value(Value) ->
-  erlang:error({wtf, Value}).
+escape_label_value(<<"\\",Rest/binary>>) ->
+    <<"\\\\",(escape_label_value(Rest))/binary>>;
+escape_label_value(<<"\n",Rest/binary>>) ->
+    <<"\\n",(escape_label_value(Rest))/binary>>;
+escape_label_value(<<"\"",Rest/binary>>) ->
+    <<"\\\"",(escape_label_value(Rest))/binary>>;
+escape_label_value(<<C:8,Rest/binary>>) ->
+    <<C:8,(escape_label_value(Rest))/binary>>;
+escape_label_value(<<>>) ->
+    <<>>;
+escape_label_value("\\"++Cs) ->
+    ["\\\\"|escape_label_value(Cs)];
+escape_label_value("\n"++Cs) ->
+    ["\\n"|escape_label_value(Cs)];
+escape_label_value("\""++Cs) ->
+    ["\\\""|escape_label_value(Cs)];
+escape_label_value([C|Cs]) ->
+    [C|escape_label_value(Cs)];
+escape_label_value([]) ->
+    [].
 
 
 -spec sub(iodata(), string(), string()) -> string().

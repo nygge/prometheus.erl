@@ -314,13 +314,26 @@ collect_mf(Registry, Callback) ->
 
 %% @private
 collect_metrics(Name, {CLabels, Labels, Registry}) ->
-  MFValues = load_all_values(Registry, Name),
-  [begin
-     Value = reduce_label_values(LabelValues, MFValues),
-     prometheus_model_helpers:counter_metric(
-       CLabels ++ lists:zip(Labels, LabelValues), Value)
-   end ||
-    LabelValues <- collect_unique_labels(MFValues)].
+  case load_all_values(Registry, Name) of
+    [] ->
+      [];
+    MFValues ->
+      Sorted = lists:sort(MFValues),
+      fold_metrics(CLabels, Labels, Sorted, undefined, [])
+  end.
+
+fold_metrics(CLabels, Labels, [], {Ls, S}, Metrics) ->
+  Metric = prometheus_model_helpers:counter_metric(
+	     CLabels ++ lists:zip(Labels, Ls), S),
+  [Metric|Metrics];
+fold_metrics(CLabels, Labels, [[Ls, I, F]|Rest], undefined, Metrics) ->
+  fold_metrics(CLabels, Labels, Rest, {Ls, I+F}, Metrics);
+fold_metrics(CLabels, Labels, [[Ls, I, F]|Rest], {Ls, S}, Metrics) ->
+  fold_metrics(CLabels, Labels, Rest, {Ls, S+I+F}, Metrics);
+fold_metrics(CLabels, Labels, [[Ls1, I, F]|Rest], {Ls, S}, Metrics) ->
+  Metric = prometheus_model_helpers:counter_metric(
+	     CLabels ++ lists:zip(Labels, Ls), S),
+  fold_metrics(CLabels, Labels, Rest, {Ls1, I+F}, [Metric|Metrics]).
 
 %%====================================================================
 %% Private Parts

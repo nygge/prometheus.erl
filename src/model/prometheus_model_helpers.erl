@@ -369,9 +369,11 @@ not_undefined(_)         -> true.
 
 %% @private
 -spec ensure_binary_or_string(Val :: term())     -> binary() | string().
+%%ensure_binary_or_string(Val) when is_atom(Val)   -> atom_to_list(Val);
 ensure_binary_or_string(Val) when is_atom(Val)   -> atom_to_binary(Val, utf8);
 ensure_binary_or_string(Val) when is_list(Val)   -> Val; %% FIXME: validate utf8
 ensure_binary_or_string(Val) when is_binary(Val) -> Val;
+ensure_binary_or_string(Val) when is_integer(Val) -> integer_to_list(Val);
 ensure_binary_or_string(Val) ->
   io_lib:format("~p", [Val]).
 
